@@ -1,0 +1,80 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.1
+  creationTimestamp: null
+  name: gitreposcans.management.cattle.io
+spec:
+  group: management.cattle.io
+  names:
+    kind: GitRepoScan
+    listKind: GitRepoScanList
+    plural: gitreposcans
+    singular: gitreposcan
+  scope: Namespaced
+  versions:
+  - name: v3
+    schema:
+      openAPIV3Schema:
+        description: GitRepoScan is the Schema for the gitreposcans API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GitRepoScanSpec defines the desired state of GitRepoScan
+            properties:
+              repoSecretName:
+                description: 'RepoSecretName is the name of the secret (in the same
+                  namespace as the chart is installed in) containing the secret to
+                  access the repo at RepoUrl. If empty, uses the secret configured
+                  when installing the controller TODO: Update this with information
+                  on variable which controls the controller default'
+                type: string
+              repoUrl:
+                description: RepoUrl defines the target git repo to scan. Can be in
+                  https format (https://github.com/MbolotSuse/rancher-token-revoker.git)
+                  or in ssh format (git@github.com:MbolotSuse/rancher-token-revoker.git)
+                type: string
+              scanIntervalSeconds:
+                description: 'ScanIntervalSeconds is time between the last scan''s
+                  start time and the next time a scan will be run. If empty/0, uses
+                  the default which is set on the controller. TODO: Update this with
+                  information on variable which controls the controller default'
+                type: integer
+            required:
+            - repoUrl
+            type: object
+          status:
+            description: GitRepoScanStatus defines the observed state of GitRepoScan
+            properties:
+              lastScanTime:
+                description: LastScanTime records the last time a scan was completed
+                  in RFC3339 format. If "", no scans have been attempted
+                type: string
+              scanError:
+                description: ScanError records the error from the last scan. If nil,
+                  the last scan succeeded
+                properties:
+                  errorCode:
+                    type: string
+                  errorMessage:
+                    type: string
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

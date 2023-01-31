@@ -1,0 +1,31 @@
+# permissions for end users to edit gitreposcans.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: gitreposcan-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: rancher-token-revoker
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+  name: gitreposcan-editor-role
+rules:
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitreposcans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitreposcans/status
+  verbs:
+  - get

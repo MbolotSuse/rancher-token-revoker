@@ -118,7 +118,8 @@ func (t *TokenRevoker) revokeTokenFromHashedTokens(tokenValue string) error {
 			}
 			// launch a worker thread to validate this hash, releasing the semaphore after done
 			go func() {
-				//TODO: Right now this is not memoized. This can lead to large inefficiencies for r
+				//TODO: Right now this is not memoized. This can lead to large inefficiencies for setups which don't use
+				// any ignore functionality
 				err := VerifySHA256Hash(token.Token, tokenValue)
 				if err != nil {
 					results <- calcResult{

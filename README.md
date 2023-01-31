@@ -4,90 +4,39 @@ The rancher-token-revoker watches your git repos for exposed rancher tokens. If 
 deletes (or disables/warns depending on configuration) the exposed tokens.
 
 ## Description
-// TODO: More details on the CRs, use of gitleaks for token detection, links to samples
 
-## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
+The rancher-token-revoker defines a CRD (GitRepoScans) which allows users to define specific git repos that will be watched for exposed rancher tokens.
+These repos are then cloned by the application, and scanned using [gitleaks](https://github.com/zricethezav/gitleaks). 
 
-### Running on the cluster
-1. Install Instances of Custom Resources:
+From there, the application attempts to delete/disable/warn about the tokens that it discovered. 
+Since gitleaks is currently analyzing the commits rather than the raw file contents, even if users attempt to make the com
 
-```sh
-kubectl apply -f config/samples/
-```
+Users can define the following options for the controller:
+- DefaultScanInterval: the default time between scans (in seconds, as an int) for GitRepoScans which don't specify a custom scan interval.
+- RevokeMode: One of warn, disable, delete. Specifies the action to be taken with exposed tokens. Defaults to warn.
+  - warn: Log the name of the exposed token with level warn.
+  - disable: Update the token and set `token.enable` to false
+  - delete: Remove the token entirely
 
-2. Build and push your image to the location specified by `IMG`:
+Users can define the following options on the GitRepoScans CRD (see the [crd definition](config/crd/bases/management.cattle.io_gitreposcans.yaml) for all fields)
+- ScanInterval: the time (in seconds as an int) between scans. If not specified (or is 0), uses the DefaultScanInterval
+- RepoUrl: The url of the gitrepo to scan. Should be in the format of an `ssh` or `https` url which can be used to clone/pull the repo
 
-```sh
-make docker-build docker-push IMG=<some-registry>/rancher-token-revoker:tag
-```
+*Note:* This will still work if you are using token hashing. 
+However, there is a significant performance decrease when token hashing is enabled since the application needs to
+compare exposed tokens against every token in the cluster. Make sure to keep this in mind when setting scan intervals.
 
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+### Features
+- Define git repos to scan using a CRD
+- Scan repos at custom-defined intervals
+- Automatically delete/disable/warn (based on configuration) exposed rancher tokens
+- Works with token hashing enabled or disabled
 
-```sh
-make deploy IMG=<some-registry>/rancher-token-revoker:tag
-```
+## Developer information/usage
 
-### Uninstall CRDs
-To delete the CRDs from the cluster:
+Information about developing locally/using the makefile can be found in the [kubebuilder readme](docs/kubebuilder_readme.md) 
 
-```sh
-make uninstall
-```
-
-### Undeploy controller
-UnDeploy the controller from the cluster:
-
-```sh
-make undeploy
-```
-
-### How it works
-This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
-
-It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/),
-which provide a reconcile function responsible for synchronizing resources until the desired state is reached on the cluster.
-
-### Test It Out
-1. Install the CRDs into the cluster:
-
-```sh
-make install
-```
-
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
-
-### Modifying the API definitions
-If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
-
-```sh
-make manifests
-```
-
-**NOTE:** Run `make --help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2023.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Common commands include:
+- `make`, for when you want to re-build the application. The application can then be run with `./bin/manager`
+- `make install`, for when you need to install the relevant crds into the cluster before running the application.
+- `make manifests`, for when you make a change to the crds and need to re-generate their definitions

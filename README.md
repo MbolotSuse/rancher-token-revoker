@@ -5,8 +5,15 @@ deletes (or disables/warns depending on configuration) the exposed tokens.
 
 ## Description
 
+### Feature Overview
+- Define git repos to scan using a CRD
+- Scan repos at custom-defined intervals
+- Automatically delete/disable/warn (based on configuration) exposed rancher tokens
+- Works with token hashing enabled or disabled
+
+## Detailed Description
 The rancher-token-revoker defines a CRD (GitRepoScans) which allows users to define specific git repos that will be watched for exposed rancher tokens.
-These repos are then cloned by the application, and scanned using [gitleaks](https://github.com/zricethezav/gitleaks). 
+These repos are then cloned by the application, and scanned using [gitleaks](https://github.com/zricethezav/gitleaks). Each time the repo is scanned, a pull is attempted first to ensure the repo is up-to-date. 
 
 From there, the application attempts to delete/disable/warn about the tokens that it discovered. 
 Since gitleaks is currently analyzing the commits rather than the raw file contents, even if users attempt to make the com
@@ -25,12 +32,6 @@ Users can define the following options on the GitRepoScans CRD (see the [crd def
 *Note:* This will still work if you are using token hashing. 
 However, there is a significant performance decrease when token hashing is enabled since the application needs to
 compare exposed tokens against every token in the cluster. Make sure to keep this in mind when setting scan intervals.
-
-### Features
-- Define git repos to scan using a CRD
-- Scan repos at custom-defined intervals
-- Automatically delete/disable/warn (based on configuration) exposed rancher tokens
-- Works with token hashing enabled or disabled
 
 ## Developer information/usage
 

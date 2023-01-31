@@ -4,7 +4,7 @@ The rancher-token-revoker watches your git repos for exposed rancher tokens. If 
 deletes (or disables/warns depending on configuration) the exposed tokens.
 
 ## Description
-// TODO: More details on the CRs, use of gitleaks for token detection, links to sampels
+// TODO: More details on the CRs, use of gitleaks for token detection, links to samples
 
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.

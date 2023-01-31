@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/mbolotsuse/rancher-token-revoker/scanner"
+	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,12 +31,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	managementv3 "github.com/mbolotsuse/rancher-token-revoker/api/v3"
+	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 )
 
 // GitRepoScanReconciler reconciles a GitRepoScan object
 type GitRepoScanReconciler struct {
 	client.Client
-	Scheme       *runtime.Scheme
+	Scheme *runtime.Scheme
+	// DefaultScanInterval is the scan interval which should be used if no scan interval is specified for a given CR
+	DefaultScanInterval int
+	// RevokerMode is the mode of the tokenRevoker
+	RevokerMode  revoker.Mode
 	scanHandlers sync.Map
 }
 
@@ -80,40 +86,59 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		logrus.Infof("%t", err == nil)
 		return ctrl.Result{}, fmt.Errorf("unable to initialize scan %w", err)
 	}
-	go r.startRepoScans(cancelContext, repoScanner, scan)
+	tokenRevoker := revoker.TokenRevoker{
+		Mode:   r.RevokerMode,
+		Client: r.Client,
+	}
+	go r.startRepoScans(cancelContext, scanConfig{
+		scan:    scan,
+		scanner: repoScanner,
+		revoker: tokenRevoker,
+	})
 
 	return ctrl.Result{}, nil
 }
 
-func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, scanner scanner.GitRepoScanner, scan managementv3.GitRepoScan) {
-	duration := scan.Spec.ScanIntervalSeconds
-	// TODO: This value should be read from env vars/prog args
+// scanConfig holds all of the args required to scan a single repo
+type scanConfig struct {
+	scan    managementv3.GitRepoScan
+	scanner scanner.GitRepoScanner
+	revoker revoker.TokenRevoker
+}
+
+func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanConfig) {
+	duration := config.scan.Spec.ScanIntervalSeconds
 	if duration <= 0 {
-		duration = 60
+		duration = r.DefaultScanInterval
 	}
-	ticker := time.NewTicker(time.Duration(scan.Spec.ScanIntervalSeconds) * time.Second)
-	logrus.Infof("running ticker with interval %d, %d", time.Duration(scan.Spec.ScanIntervalSeconds)*time.Second, 5*time.Second)
+	tickInterval := time.Duration(duration) * time.Second
+	ticker := time.NewTicker(tickInterval)
+	logrus.Infof("running scan of repo %s every %d seconds", config.scan.Name+"/"+config.scan.Namespace, duration)
 	// TODO: update cr on scan with
 	// time.Now().Format(time.RFC3339)
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Infof("shutdown signal received for %s", scan.Namespace+"/"+scan.Name)
-			err := scanner.Stop()
+			logrus.Infof("shutdown signal received for %s", config.scan.Namespace+"/"+config.scan.Name)
+			err := config.scanner.Stop()
 			if err != nil {
 				logrus.Errorf("unable to stop scanner %s", err.Error())
 			}
 			return
 		case <-ticker.C:
-			logrus.Infof("scanning %s", scan.Namespace+"/"+scan.Name)
-			reports, err := scanner.Scan()
+			logrus.Infof("scanning %s", config.scan.Namespace+"/"+config.scan.Name)
+			reports, err := config.scanner.Scan()
 			if err != nil {
 				logrus.Errorf("unable to scan repo %s", err.Error())
 				continue
 			}
 			logrus.Infof("found %d exposed credentials", len(reports))
 			for _, report := range reports {
-				logrus.Infof("Exposed token found: %+v", report)
+				logrus.Infof("Value matching rancher token pattern found in %s at commit %s by author %s ", config.scan.Spec.RepoUrl, report.Commit, report.Author)
+				err := config.revoker.RevokeTokenByValue(report.Secret)
+				if err != nil {
+					logrus.Infof("Unable to revoke token with error %s", err.Error())
+				}
 			}
 		}
 	}
@@ -121,6 +146,14 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, scanner scan
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GitRepoScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rancherv3.Token{}, revoker.IndexerKey, func(rawObj client.Object) []string {
+		token := rawObj.(*rancherv3.Token)
+		return []string{token.Token}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&managementv3.GitRepoScan{}).
 		Complete(r)

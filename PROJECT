@@ -17,4 +17,9 @@ resources:
   kind: GitRepoScan
   path: github.com/mbolotsuse/rancher-token-revoker/api/v3
   version: v3
+- controller: true
+  domain: cattle.io
+  group: management
+  kind: Token
+  version: v3
 version: "3"

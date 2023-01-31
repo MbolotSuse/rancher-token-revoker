@@ -86,9 +86,9 @@ func (g *GitRepoScanner) Stop() error {
 func initializeTargetDir(repoUrl string) error {
 	baseDir, err := os.Stat(basePath)
 	if err != nil {
-		// if the basDir doesn't exist, make a new one
+		// if the baseDir doesn't exist, make a new one
 		if os.IsNotExist(err) {
-			createErr := os.Mkdir(basePath, 0700)
+			createErr := os.MkdirAll(basePath, 0700)
 			if createErr != nil {
 				return fmt.Errorf("unable to create base directory %w", createErr)
 			}

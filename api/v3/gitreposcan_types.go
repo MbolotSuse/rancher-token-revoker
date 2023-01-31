@@ -17,6 +17,7 @@ limitations under the License.
 package v3
 
 import (
+	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -42,8 +43,7 @@ type GitRepoScanSpec struct {
 	RepoSecretName string `json:"repoSecretName,omitempty"`
 
 	// ScanIntervalSeconds is time between the last scan's start time and the next time a scan will be run. If empty/0,
-	// uses the default which is set on the controller.
-	// TODO: Update this with information on variable which controls the controller default
+	// uses the default fed into the controller/chart with the -default-scan-interval arg
 	ScanIntervalSeconds int `json:"scanIntervalSeconds,omitempty"`
 }
 
@@ -79,4 +79,6 @@ type GitRepoScanList struct {
 
 func init() {
 	SchemeBuilder.Register(&GitRepoScan{}, &GitRepoScanList{})
+	// rancher token types are in the same api group so we can add them to the schema here
+	SchemeBuilder.Register(&rancherv3.Token{}, &rancherv3.TokenList{})
 }

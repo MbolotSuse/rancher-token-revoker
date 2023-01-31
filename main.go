@@ -18,8 +18,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
+	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -52,17 +54,26 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var defaultScanIntervalSeconds int
+	var revokeMode string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.IntVar(&defaultScanIntervalSeconds, "default-scan-interval", 60, "Default scan interval in seconds")
+	flag.StringVar(&revokeMode, "revoke-mode", "warn", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	revokerMode, err := convertRevokerArgToRevokerMode(revokeMode)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -90,8 +101,10 @@ func main() {
 	}
 
 	if err = (&controllers.GitRepoScanReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		DefaultScanInterval: defaultScanIntervalSeconds,
+		RevokerMode:         revokerMode,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitRepoScan")
 		os.Exit(1)
@@ -111,5 +124,18 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
+	}
+}
+
+func convertRevokerArgToRevokerMode(revokerArg string) (revoker.Mode, error) {
+	switch revokerArg {
+	case "warn":
+		return revoker.ModeWarn, nil
+	case "disable":
+		return revoker.ModeDisable, nil
+	case "delete":
+		return revoker.ModeDelete, nil
+	default:
+		return -1, fmt.Errorf("unrecognized revoker mode %s, see help for allowed args", revokerArg)
 	}
 }

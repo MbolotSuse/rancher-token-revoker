@@ -48,10 +48,10 @@ spec:
                   or in ssh format (git@github.com:MbolotSuse/rancher-token-revoker.git)
                 type: string
               scanIntervalSeconds:
-                description: 'ScanIntervalSeconds is time between the last scan''s
-                  start time and the next time a scan will be run. If empty/0, uses
-                  the default which is set on the controller. TODO: Update this with
-                  information on variable which controls the controller default'
+                description: ScanIntervalSeconds is time between the last scan's start
+                  time and the next time a scan will be run. If empty/0, uses the
+                  default fed into the controller/chart with the --default-scan-interval
+                  arg
                 type: integer
             required:
             - repoUrl

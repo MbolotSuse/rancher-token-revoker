@@ -50,7 +50,7 @@ spec:
               scanIntervalSeconds:
                 description: ScanIntervalSeconds is time between the last scan's start
                   time and the next time a scan will be run. If empty/0, uses the
-                  default fed into the controller/chart with the --default-scan-interval
+                  default fed into the controller/chart with the -default-scan-interval
                   arg
                 type: integer
             required:

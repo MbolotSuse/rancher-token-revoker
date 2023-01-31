@@ -81,4 +81,5 @@ func init() {
 	SchemeBuilder.Register(&GitRepoScan{}, &GitRepoScanList{})
 	// rancher token types are in the same api group so we can add them to the schema here
 	SchemeBuilder.Register(&rancherv3.Token{}, &rancherv3.TokenList{})
+	SchemeBuilder.Register(&rancherv3.Feature{}, &rancherv3.FeatureList{})
 }

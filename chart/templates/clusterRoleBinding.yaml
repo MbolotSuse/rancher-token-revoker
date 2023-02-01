@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    {{- include "rancher-token-revoker.labels" . | nindent 4 }}
+  name: revoker-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: revoker-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: {{ include "rancher-token-revoker.fullname" . }}
+  namespace: {{ .Release.Namespace }}

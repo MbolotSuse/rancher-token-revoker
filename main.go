@@ -43,6 +43,8 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+const defaultNamespace = "cattle-revoker-system"
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -73,6 +75,11 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(-1)
+	}
+
+	namespace, ok := os.LookupEnv("K8S_NAMESPACE")
+	if !ok {
+		namespace = defaultNamespace
 	}
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
@@ -105,6 +112,7 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		DefaultScanInterval: defaultScanIntervalSeconds,
 		RevokerMode:         revokerMode,
+		Namespace:           namespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitRepoScan")
 		os.Exit(1)

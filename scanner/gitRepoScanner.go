@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/mbolotsuse/rancher-token-revoker/errors"
 	"github.com/zricethezav/gitleaks/v8/config"
 	"github.com/zricethezav/gitleaks/v8/detect"
@@ -18,7 +19,8 @@ import (
 const basePath = "/tmp/repos"
 
 type GitRepoScanner struct {
-	RepoUrl string
+	RepoUrl    string
+	AuthMethod transport.AuthMethod
 
 	repo *git.Repository
 }
@@ -33,7 +35,8 @@ func (g *GitRepoScanner) Start() error {
 	repoPath := filepath.Join(basePath, repoId)
 
 	repo, err := git.PlainClone(repoPath, false, &git.CloneOptions{
-		URL: g.RepoUrl,
+		URL:  g.RepoUrl,
+		Auth: g.AuthMethod,
 	})
 	if err != nil {
 		return errors.New(fmt.Sprintf("unable to clone repo %s", err.Error()), errors.InternalError)
@@ -52,7 +55,9 @@ func (g *GitRepoScanner) Scan() ([]report.Finding, error) {
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("unable to load worktree to refresh git repo %s", err), errors.InternalError)
 	}
-	err = wt.Pull(&git.PullOptions{})
+	err = wt.Pull(&git.PullOptions{
+		Auth: g.AuthMethod,
+	})
 	// if we got an error and are unable to pull the latest changes, return an error and don't evaluate this round
 	if err != nil && err != git.NoErrAlreadyUpToDate {
 		return nil, errors.New(fmt.Sprintf("unable to refresh git repo %s", err), errors.InternalError)

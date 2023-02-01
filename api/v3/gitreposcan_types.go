@@ -38,11 +38,11 @@ type GitRepoScanSpec struct {
 	RepoUrl string `json:"repoUrl"`
 
 	// RepoSecretName is the name of the secret (in the same namespace as the chart is installed in) containing the secret
-	// to access the repo at RepoUrl. If empty, uses the secret configured when installing the controller (
+	// to access the repo at RepoUrl. If empty, uses the secret configured when installing the controller (revokerOptions.defaultSecretName)
 	RepoSecretName string `json:"repoSecretName,omitempty"`
 
 	// ScanIntervalSeconds is time between the last scan's start time and the next time a scan will be run. If empty/0,
-	// uses the default fed into the controller/chart with the -default-scan-interval arg
+	// uses the default configured when installing the controller (revokerOptions.defaultScanInterval)
 	ScanIntervalSeconds int `json:"scanIntervalSeconds,omitempty"`
 
 	// ForceNoAuth, if true, forces scans for this repo to ignore other settings to use a secret to clone/pull from the repo

@@ -59,16 +59,18 @@ func main() {
 	var defaultScanIntervalSeconds int
 	var revokeMode string
 	var defaultSecret string
+	var debug bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&defaultScanIntervalSeconds, "default-scan-interval", 60, "Default scan interval in seconds")
-	flag.StringVar(&revokeMode, "revoke-mode", "warn", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
+	flag.StringVar(&revokeMode, "revoke-mode", "disable", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
 	flag.StringVar(&defaultSecret, "default-secret", "", "Optional: default secret (in $K8S_NAMESPACE) which contains authentication value to be used by default for repo access")
+	flag.BoolVar(&debug, "debug", false, "Debug mode - default false")
 	opts := zap.Options{
-		Development: true,
+		Development: debug,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()

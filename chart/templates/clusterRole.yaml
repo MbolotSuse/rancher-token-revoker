@@ -1,0 +1,50 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: revoker-cluster-role
+  labels:
+    {{- include "rancher-token-revoker.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - gitreposcans
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - gitreposcans/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - gitreposcans/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - tokens
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - features
+    verbs:
+      - get
+      - list
+      - watch

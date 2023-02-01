@@ -3,6 +3,16 @@
 The rancher-token-revoker watches your git repos for exposed rancher tokens. If any are discovered, it automatically 
 deletes (or disables/warns depending on configuration) the exposed tokens.
 
+## Installation
+
+```bash
+git clone https://github.com/MbolotSuse/rancher-token-revoker.git
+cd rancher-token-revoker/chart
+helm install rancher-token-revoker ./ --namespace cattle-revoker-system --create-namespace
+```
+
+See the [chart readme](chart/README.md) for more information on chart options. Note that this project does use [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) for most of the framework. However, the helm chart is considered the cannonical way to install the application. Other ways of installing may or may not work.
+
 ## Description
 
 ### Feature Overview

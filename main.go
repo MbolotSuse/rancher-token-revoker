@@ -58,6 +58,7 @@ func main() {
 	var probeAddr string
 	var defaultScanIntervalSeconds int
 	var revokeMode string
+	var defaultSecret string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -65,6 +66,7 @@ func main() {
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&defaultScanIntervalSeconds, "default-scan-interval", 60, "Default scan interval in seconds")
 	flag.StringVar(&revokeMode, "revoke-mode", "warn", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
+	flag.StringVar(&defaultSecret, "default-secret", "", "Optional: default secret (in $K8S_NAMESPACE) which contains authentication value to be used by default for repo access")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -113,6 +115,7 @@ func main() {
 		DefaultScanInterval: defaultScanIntervalSeconds,
 		RevokerMode:         revokerMode,
 		Namespace:           namespace,
+		DefaultAuthSecret:   defaultSecret,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitRepoScan")
 		os.Exit(1)

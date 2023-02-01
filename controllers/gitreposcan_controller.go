@@ -83,11 +83,13 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var gitAuthSecret string
 	isDefault := false
 	// use the value specified for this repo, or fallback to the default provided for the controller
-	if scan.Spec.RepoSecretName != "" {
+	if scan.Spec.ForceNoAuth {
+		gitAuthSecret = ""
+	} else if scan.Spec.RepoSecretName != "" {
 		gitAuthSecret = scan.Spec.RepoSecretName
-		isDefault = true
 	} else if r.DefaultAuthSecret != "" {
 		gitAuthSecret = r.DefaultAuthSecret
+		isDefault = true
 	}
 
 	var repoScanner scanner.GitRepoScanner
@@ -101,7 +103,10 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 			// The user may/may not be able to see the controller logs, but they will be able to see the status on their
 			// repo scan, so update the scan object accordingly
-			_, err := r.updateScanStatus(scan, false, errorMessage)
+			_, updErr := r.updateScanStatus(scan, false, errorMessage)
+			if updErr != nil {
+				logrus.Errorf("unable to update scan status, %s", updErr)
+			}
 			return ctrl.Result{Requeue: false}, fmt.Errorf("unable to read auth method from secret: %w", err)
 		}
 		repoScanner = scanner.GitRepoScanner{
@@ -200,16 +205,16 @@ func (r *GitRepoScanReconciler) readAuthMethodFromSecret(secretName string) (tra
 	}
 	switch secret.Type {
 	case v1.SecretTypeBasicAuth:
-		username, ok := secret.StringData[v1.BasicAuthUsernameKey]
+		bytesUsername, ok := secret.Data[v1.BasicAuthUsernameKey]
 		// k8s should be validating these fields, but double-check it just in case
 		if !ok {
 			return nil, fmt.Errorf("secret was of type %s, but there was no %s key", v1.SecretTypeBasicAuth, v1.BasicAuthUsernameKey)
 		}
-		password, ok := secret.StringData[v1.BasicAuthPasswordKey]
+		bytesPassword, ok := secret.Data[v1.BasicAuthPasswordKey]
 		if !ok {
 			return nil, fmt.Errorf("secret was of type %s, bu there was no %s key", v1.SecretTypeBasicAuth, v1.BasicAuthPasswordKey)
 		}
-		return &http.BasicAuth{Username: username, Password: password}, nil
+		return &http.BasicAuth{Username: string(bytesUsername), Password: string(bytesPassword)}, nil
 	case v1.SecretTypeSSHAuth:
 		privateKey, ok := secret.Data[v1.SSHAuthPrivateKey]
 		if !ok {

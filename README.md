@@ -8,6 +8,7 @@ deletes (or disables/warns depending on configuration) the exposed tokens.
 ### Feature Overview
 - Define git repos to scan using a CRD
 - Scan repos at custom-defined intervals
+- Scan private repos using http basic auth or ssh auth
 - Automatically delete/disable/warn (based on configuration) exposed rancher tokens
 - Works with token hashing enabled or disabled
 
@@ -41,3 +42,7 @@ Common commands include:
 - `make`, for when you want to re-build the application. The application can then be run with `./bin/manager`
 - `make install`, for when you need to install the relevant crds into the cluster before running the application.
 - `make manifests`, for when you make a change to the crds and need to re-generate their definitions
+
+## Docs
+
+See the `docs` directory for detailed docs on various features (such as setting up private repo authentication).

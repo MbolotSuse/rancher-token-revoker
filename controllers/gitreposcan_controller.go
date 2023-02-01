@@ -22,17 +22,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	managementv3 "github.com/mbolotsuse/rancher-token-revoker/api/v3"
+	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 	"github.com/mbolotsuse/rancher-token-revoker/scanner"
 	rancherv3 "github.com/rancher/rancher/pkg/apis/management.cattle.io/v3"
 	"github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	managementv3 "github.com/mbolotsuse/rancher-token-revoker/api/v3"
-	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 )
+
+// gitSSHUser defines the user to attempt to auth as when cloning a private repo. For github/gitlab this appears to be
+// git. Might be good to make this customizable in the future
+const gitSSHUser = "git"
 
 // GitRepoScanReconciler reconciles a GitRepoScan object
 type GitRepoScanReconciler struct {
@@ -40,8 +46,12 @@ type GitRepoScanReconciler struct {
 	Scheme *runtime.Scheme
 	// DefaultScanInterval is the scan interval which should be used if no scan interval is specified for a given CR
 	DefaultScanInterval int
+	// DefaultAuthSecret is the secret used to pull from private repos if no cred is specified for that repo
+	DefaultAuthSecret string
 	// RevokerMode is the mode of the tokenRevoker
-	RevokerMode  revoker.Mode
+	RevokerMode revoker.Mode
+	// Namespace is the namespace that the controller is running in
+	Namespace    string
 	scanHandlers sync.Map
 }
 
@@ -49,17 +59,9 @@ type GitRepoScanReconciler struct {
 //+kubebuilder:rbac:groups=management.cattle.io,resources=gitreposcans/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=management.cattle.io,resources=gitreposcans/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the GitRepoScan object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
+// Reconcile attempts to launch a go-routine processing a scan of a repo. If an existing repo scan is already running
+// it cancels the current scan before launching a new one (to ensure that the new settings take effect)
 func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
 	// if we have a running handler, stop it so that we can restart it with the update configuration
 	if value, ok := r.scanHandlers.Load(req.NamespacedName); ok {
 		logrus.Infof("Stopping watch for %s", req.NamespacedName)
@@ -78,9 +80,45 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	cancelContext, cancelFunc := context.WithCancel(ctx)
 	r.scanHandlers.Store(req.NamespacedName, cancelFunc)
 
-	repoScanner := scanner.GitRepoScanner{
-		RepoUrl: scan.Spec.RepoUrl,
+	var gitAuthSecret string
+	isDefault := false
+	// use the value specified for this repo, or fallback to the default provided for the controller
+	if scan.Spec.ForceNoAuth {
+		gitAuthSecret = ""
+	} else if scan.Spec.RepoSecretName != "" {
+		gitAuthSecret = scan.Spec.RepoSecretName
+	} else if r.DefaultAuthSecret != "" {
+		gitAuthSecret = r.DefaultAuthSecret
+		isDefault = true
 	}
+
+	var repoScanner scanner.GitRepoScanner
+	if gitAuthSecret != "" {
+		authMethod, err := r.readAuthMethodFromSecret(gitAuthSecret)
+		if err != nil {
+			errorMessage := fmt.Sprintf("unable to create auth method from secret: %s", err)
+			if isDefault {
+				errorMessage = fmt.Sprintf("unable to create auth method from default application secret")
+				logrus.Errorf("unable to create auth method from default secret: %s", err.Error())
+			}
+			// The user may/may not be able to see the controller logs, but they will be able to see the status on their
+			// repo scan, so update the scan object accordingly
+			_, updErr := r.updateScanStatus(scan, false, errorMessage)
+			if updErr != nil {
+				logrus.Errorf("unable to update scan status, %s", updErr)
+			}
+			return ctrl.Result{Requeue: false}, fmt.Errorf("unable to read auth method from secret: %w", err)
+		}
+		repoScanner = scanner.GitRepoScanner{
+			RepoUrl:    scan.Spec.RepoUrl,
+			AuthMethod: authMethod,
+		}
+	} else {
+		repoScanner = scanner.GitRepoScanner{
+			RepoUrl: scan.Spec.RepoUrl,
+		}
+	}
+
 	err = repoScanner.Start()
 	if err != nil {
 		logrus.Infof("%t", err == nil)
@@ -99,7 +137,7 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-// scanConfig holds all of the args required to scan a single repo
+// scanConfig holds the args required to scan a single repo
 type scanConfig struct {
 	scan    managementv3.GitRepoScan
 	scanner scanner.GitRepoScanner
@@ -114,8 +152,6 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 	tickInterval := time.Duration(duration) * time.Second
 	ticker := time.NewTicker(tickInterval)
 	logrus.Infof("running scan of repo %s every %d seconds", config.scan.Name+"/"+config.scan.Namespace, duration)
-	// TODO: update cr on scan with
-	// time.Now().Format(time.RFC3339)
 	for {
 		select {
 		case <-ctx.Done():
@@ -130,7 +166,19 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 			reports, err := config.scanner.Scan()
 			if err != nil {
 				logrus.Errorf("unable to scan repo %s", err.Error())
+				newScan, updErr := r.updateScanStatus(config.scan, false, err.Error())
+				if updErr != nil {
+					logrus.Errorf("unable to update scan status %s", updErr.Error())
+					continue
+				}
+				config.scan = *newScan
 				continue
+			}
+			newScan, updErr := r.updateScanStatus(config.scan, true, "")
+			if updErr != nil {
+				logrus.Errorf("unable to update scan status %s", updErr.Error())
+			} else {
+				config.scan = *newScan
 			}
 			logrus.Infof("found %d exposed credentials", len(reports))
 			for _, report := range reports {
@@ -142,6 +190,56 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 			}
 		}
 	}
+}
+
+// readAuthMethodFromSecret fetches the specified secret in the controller's namespace and converts to the applicable AuthMethod
+func (r *GitRepoScanReconciler) readAuthMethodFromSecret(secretName string) (transport.AuthMethod, error) {
+	secretKey := client.ObjectKey{
+		Name:      secretName,
+		Namespace: r.Namespace,
+	}
+	var secret v1.Secret
+	err := r.Client.Get(context.Background(), secretKey, &secret)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get scret: %w", err)
+	}
+	switch secret.Type {
+	case v1.SecretTypeBasicAuth:
+		bytesUsername, ok := secret.Data[v1.BasicAuthUsernameKey]
+		// k8s should be validating these fields, but double-check it just in case
+		if !ok {
+			return nil, fmt.Errorf("secret was of type %s, but there was no %s key", v1.SecretTypeBasicAuth, v1.BasicAuthUsernameKey)
+		}
+		bytesPassword, ok := secret.Data[v1.BasicAuthPasswordKey]
+		if !ok {
+			return nil, fmt.Errorf("secret was of type %s, bu there was no %s key", v1.SecretTypeBasicAuth, v1.BasicAuthPasswordKey)
+		}
+		return &http.BasicAuth{Username: string(bytesUsername), Password: string(bytesPassword)}, nil
+	case v1.SecretTypeSSHAuth:
+		privateKey, ok := secret.Data[v1.SSHAuthPrivateKey]
+		if !ok {
+			return nil, fmt.Errorf("secret was of type %s, bu there was no %s key", v1.SecretTypeSSHAuth, v1.SSHAuthPrivateKey)
+		}
+		// password should be empty. This value is not expected to be encrypted with a passphrase, since any passphrase
+		// would have to be fed to the application through a secret.
+		return ssh.NewPublicKeys(gitSSHUser, privateKey, "")
+	default:
+		return nil, fmt.Errorf("unrecognized secret type %s, ensure that the secret type is one of the approved types", secret.Type)
+	}
+}
+
+// updateScanStatus updates the status of a scan. Success should be false if we failed. Message should only be non-empty
+// if we failed
+func (r *GitRepoScanReconciler) updateScanStatus(scan managementv3.GitRepoScan, success bool, message string) (*managementv3.GitRepoScan, error) {
+	scanTime := time.Now().Format(time.RFC3339)
+	scan.Status.LastScanTime = scanTime
+	if !success {
+		scan.Status.ScanError = &managementv3.RepoScanError{
+			ErrorMessage: message,
+		}
+	}
+	err := r.Update(context.Background(), &scan)
+	return &scan, err
 }
 
 // SetupWithManager sets up the controller with the Manager.

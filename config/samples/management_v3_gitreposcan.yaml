@@ -12,3 +12,19 @@ metadata:
 spec:
   repoUrl: https://github.com/MbolotSuse/token-revoker-test.git
   scanIntervalSeconds: 60
+---
+apiVersion: management.cattle.io/v3
+kind: GitRepoScan
+metadata:
+  labels:
+    app.kubernetes.io/name: gitreposcan
+    app.kubernetes.io/instance: gitreposcan-sample
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: rancher-token-revoker
+  name: privatescan-sample
+  namespace: test-ns
+spec:
+  repoUrl: git@github.com:MbolotSuse/token-revoker-private-test.git
+  scanIntervalSeconds: 60
+  repoSecretName: deploy-key

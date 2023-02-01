@@ -35,12 +35,17 @@ spec:
           spec:
             description: GitRepoScanSpec defines the desired state of GitRepoScan
             properties:
+              forceNoAuth:
+                description: ForceNoAuth, if true, forces scans for this repo to ignore
+                  other settings to use a secret to clone/pull from the repo Useful
+                  for forcing a scan to ignore auth settings setup at the controller
+                  level
+                type: boolean
               repoSecretName:
-                description: 'RepoSecretName is the name of the secret (in the same
+                description: RepoSecretName is the name of the secret (in the same
                   namespace as the chart is installed in) containing the secret to
                   access the repo at RepoUrl. If empty, uses the secret configured
-                  when installing the controller TODO: Update this with information
-                  on variable which controls the controller default'
+                  when installing the controller (
                 type: string
               repoUrl:
                 description: RepoUrl defines the target git repo to scan. Can be in

@@ -5,6 +5,8 @@ deletes (or disables/warns depending on configuration) the exposed tokens.
 
 ## Installation
 
+**Note:** This chart requires rancher to be installed first. This should be installed in the same cluster rancher is installed in.
+
 ```bash
 git clone https://github.com/MbolotSuse/rancher-token-revoker.git
 cd rancher-token-revoker/chart
@@ -21,6 +23,7 @@ See the [chart readme](chart/README.md) for more information on chart options. N
 - Scan private repos using http basic auth or ssh auth
 - Automatically delete/disable/warn (based on configuration) exposed rancher tokens
 - Works with token hashing enabled or disabled
+- Permit exceptions of specific tokens (by name or by value)
 
 ## Detailed Description
 The rancher-token-revoker defines a CRD (GitRepoScans) which allows users to define specific git repos that will be watched for exposed rancher tokens.
@@ -36,9 +39,11 @@ Users can define the following options for the controller:
   - disable: Update the token and set `token.enable` to false
   - delete: Remove the token entirely
 
-Users can define the following options on the GitRepoScans CRD (see the [crd definition](config/crd/bases/management.cattle.io_gitreposcans.yaml) for all fields)
+Users can define the following options on the GitRepoScans CRD (see the [crd definition](config/crd/bases/management.cattle.io_gitreposcans.yaml) for all fields):
 - ScanInterval: the time (in seconds as an int) between scans. If not specified (or is 0), uses the DefaultScanInterval
 - RepoUrl: The url of the gitrepo to scan. Should be in the format of an `ssh` or `https` url which can be used to clone/pull the repo
+
+Users can also produce exceptions for certain tokens using the ScanExceptions CRD (see the [crd definition](config/crd/bases/management.cattle.io_scanexceptions.yaml for all fields), by either providing the exposed token value or the exposed token name. This should be used sparingly - keep in mind that even if the revoker detects a string that matches the pattern of a rancher token, it will only take action if it can verify that the token matches the value of a current token in the cluster it is installed in. 
 
 *Note:* This will still work if you are using token hashing. 
 However, there is a significant performance decrease when token hashing is enabled since the application needs to

@@ -22,4 +22,12 @@ resources:
   group: management
   kind: Token
   version: v3
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: cattle.io
+  group: management
+  kind: ScanException
+  path: github.com/mbolotsuse/rancher-token-revoker/api/v3
+  version: v3
 version: "3"

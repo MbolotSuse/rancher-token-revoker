@@ -22,6 +22,9 @@ import (
 	"os"
 
 	"github.com/mbolotsuse/rancher-token-revoker/revoker"
+	"github.com/rs/zerolog"
+	"github.com/sirupsen/logrus"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -68,12 +71,21 @@ func main() {
 	flag.IntVar(&defaultScanIntervalSeconds, "default-scan-interval", 60, "Default scan interval in seconds")
 	flag.StringVar(&revokeMode, "revoke-mode", "disable", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
 	flag.StringVar(&defaultSecret, "default-secret", "", "Optional: default secret (in $K8S_NAMESPACE) which contains authentication value to be used by default for repo access")
-	flag.BoolVar(&debug, "debug", false, "Debug mode - default false")
+	flag.BoolVar(&debug, "debug", false, "Debug mode - default false. Be careful when enabling, can result in secrets writing to log files")
 	opts := zap.Options{
-		Development: debug,
+		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
+
+	// Core app uses logrus, but gitleaks (dependency) uses zerolog in a way that doesn't seem to be exposed to library
+	// functions, so we have to call/disable this here
+	if debug {
+		logrus.SetLevel(logrus.DebugLevel)
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+	}
 
 	revokerMode, err := convertRevokerArgToRevokerMode(revokeMode)
 	if err != nil {

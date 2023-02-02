@@ -33,6 +33,14 @@ rules:
       - patch
       - update
   - apiGroups:
+    - management.cattle.io
+    resources:
+    - scanexceptions
+    verbs:
+    - get
+    - list
+    - watch
+  - apiGroups:
       - management.cattle.io
     resources:
       - tokens

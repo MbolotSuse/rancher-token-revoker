@@ -1,0 +1,12 @@
+apiVersion: management.cattle.io/v3
+kind: ScanException
+metadata:
+  labels:
+    app.kubernetes.io/name: scanexception
+    app.kubernetes.io/instance: scanexception-sample
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: rancher-token-revoker
+  name: scanexception-sample
+spec:
+  tokenValue: mytokenvaluehere

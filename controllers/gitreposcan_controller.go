@@ -36,9 +36,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// gitSSHUser defines the user to attempt to auth as when cloning a private repo. For github/gitlab this appears to be
-// git. Might be good to make this customizable in the future
-const gitSSHUser = "git"
+const (
+	// gitSSHUser defines the user to attempt to auth as when cloning a private repo. For github/gitlab this appears to be
+	// git. Might be good to make this customizable in the future
+	gitSSHUser = "git"
+	// exceptionIndexerKey is the key used to index scan exceptions
+	exceptionIndexerKey = ".byValue"
+	// byName is the value used for the exception indexer when the exception is based on tokenName
+	byName = "name"
+	// byValue is the value used for the exception indexer when the exception is based on tokenValue
+	byValue = "value"
+)
 
 // GitRepoScanReconciler reconciles a GitRepoScan object
 type GitRepoScanReconciler struct {
@@ -151,7 +159,7 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 	}
 	tickInterval := time.Duration(duration) * time.Second
 	ticker := time.NewTicker(tickInterval)
-	logrus.Infof("running scan of repo %s every %d seconds", config.scan.Name+"/"+config.scan.Namespace, duration)
+	logrus.Infof("running scan of repo %s every %d seconds", config.scan.Spec.RepoUrl, duration)
 	for {
 		select {
 		case <-ctx.Done():
@@ -162,6 +170,13 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 			}
 			return
 		case <-ticker.C:
+			valueExceptions, nameExceptions, err := r.getExceptionSets()
+			if err != nil {
+				// zero these out in case some invalid data is returned
+				valueExceptions = map[string]struct{}{}
+				nameExceptions = map[string]struct{}{}
+				logrus.Errorf("unable to get name/value exceptions, some exceptions may be ignored: %s", err.Error())
+			}
 			logrus.Infof("scanning %s", config.scan.Namespace+"/"+config.scan.Name)
 			reports, err := config.scanner.Scan()
 			if err != nil {
@@ -182,8 +197,12 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 			}
 			logrus.Infof("found %d exposed credentials", len(reports))
 			for _, report := range reports {
+				if _, ok := valueExceptions[report.Secret]; ok {
+					logrus.Infof("Exception found for token in %s at commit %s, skipping with no action taken", config.scan.Spec.RepoUrl, report.Commit)
+					continue
+				}
 				logrus.Infof("Value matching rancher token pattern found in %s at commit %s by author %s ", config.scan.Spec.RepoUrl, report.Commit, report.Author)
-				err := config.revoker.RevokeTokenByValue(report.Secret)
+				err := config.revoker.RevokeTokenByValue(report.Secret, nameExceptions)
 				if err != nil {
 					logrus.Infof("Unable to revoke token with error %s", err.Error())
 				}
@@ -242,12 +261,48 @@ func (r *GitRepoScanReconciler) updateScanStatus(scan managementv3.GitRepoScan, 
 	return &scan, err
 }
 
+// getExceptionSets produces two sets of exceptions - the first is the values that are excepted, the second is the names that are excepted
+func (r *GitRepoScanReconciler) getExceptionSets() (map[string]struct{}, map[string]struct{}, error) {
+	var exceptionsByName managementv3.ScanExceptionList
+	var exceptionsByValue managementv3.ScanExceptionList
+	err := r.Client.List(context.Background(), &exceptionsByValue, client.MatchingFields{exceptionIndexerKey: byValue})
+	if err != nil {
+		return nil, nil, err
+	}
+	err = r.Client.List(context.Background(), &exceptionsByName, client.MatchingFields{exceptionIndexerKey: byName})
+	if err != nil {
+		return nil, nil, err
+	}
+	nameExceptions := map[string]struct{}{}
+	for _, exception := range exceptionsByName.Items {
+		nameExceptions[exception.Spec.TokenName] = struct{}{}
+	}
+	valueExceptions := map[string]struct{}{}
+	for _, exception := range exceptionsByValue.Items {
+		valueExceptions[exception.Spec.TokenValue] = struct{}{}
+	}
+	return valueExceptions, nameExceptions, nil
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *GitRepoScanReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
+	// indexer for revoker to allow for quick lookups on value -> name mapping
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rancherv3.Token{}, revoker.IndexerKey, func(rawObj client.Object) []string {
 		token := rawObj.(*rancherv3.Token)
 		return []string{token.Token}
+	}); err != nil {
+		return err
+	}
+	// indexer to partition the exceptions into two lists - one for name and one for value
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &managementv3.ScanException{}, exceptionIndexerKey, func(rawObj client.Object) []string {
+		exception := rawObj.(*managementv3.ScanException)
+		if exception.Spec.TokenValue != "" {
+			return []string{byValue}
+		} else if exception.Spec.TokenName != "" {
+			return []string{byName}
+		}
+		return []string{"invalid"}
 	}); err != nil {
 		return err
 	}

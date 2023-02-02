@@ -175,13 +175,13 @@ func (t *TokenRevoker) revoke(token rancherv3.Token, exceptedTokenNames map[stri
 	case ModeDisable:
 		enabled := false
 		token.Enabled = &enabled
-		logrus.Infof("token %s was exposed, will now set token.enabled to false", token.Name)
+		logrus.Warnf("token %s was exposed, will now set token.enabled to false", token.Name)
 		err := t.Client.Update(context.Background(), &token)
 		if err != nil {
 			return err
 		}
 	case ModeDelete:
-		logrus.Infof("token %s was exposed, will now delete", token.Name)
+		logrus.Warnf("token %s was exposed, will now delete", token.Name)
 		err := t.Client.Delete(context.Background(), &token)
 		if err != nil {
 			return err

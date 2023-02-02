@@ -51,7 +51,9 @@ const (
 // GitRepoScanReconciler reconciles a GitRepoScan object
 type GitRepoScanReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	// adapted from https://github.com/aws-controllers-k8s/runtime/pull/49/files
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 	// DefaultScanInterval is the scan interval which should be used if no scan interval is specified for a given CR
 	DefaultScanInterval int
 	// DefaultAuthSecret is the secret used to pull from private repos if no cred is specified for that repo
@@ -91,10 +93,10 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	var gitAuthSecret string
 	isDefault := false
 	// use the value specified for this repo, or fallback to the default provided for the controller
-	if scan.Spec.ForceNoAuth {
+	if scan.Spec.Config.ForceNoAuth {
 		gitAuthSecret = ""
-	} else if scan.Spec.RepoSecretName != "" {
-		gitAuthSecret = scan.Spec.RepoSecretName
+	} else if scan.Spec.Config.RepoSecretName != "" {
+		gitAuthSecret = scan.Spec.Config.RepoSecretName
 	} else if r.DefaultAuthSecret != "" {
 		gitAuthSecret = r.DefaultAuthSecret
 		isDefault = true
@@ -136,7 +138,7 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		Mode:   r.RevokerMode,
 		Client: r.Client,
 	}
-	go r.startRepoScans(cancelContext, scanConfig{
+	go r.startRepoScans(cancelContext, repoScanArgs{
 		scan:    scan,
 		scanner: repoScanner,
 		revoker: tokenRevoker,
@@ -145,26 +147,26 @@ func (r *GitRepoScanReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return ctrl.Result{}, nil
 }
 
-// scanConfig holds the args required to scan a single repo
-type scanConfig struct {
+// repoScanArgs holds the args required to scan a single repo
+type repoScanArgs struct {
 	scan    managementv3.GitRepoScan
 	scanner scanner.GitRepoScanner
 	revoker revoker.TokenRevoker
 }
 
-func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanConfig) {
-	duration := config.scan.Spec.ScanIntervalSeconds
+func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, args repoScanArgs) {
+	duration := args.scan.Spec.Config.ScanIntervalSeconds
 	if duration <= 0 {
 		duration = r.DefaultScanInterval
 	}
 	tickInterval := time.Duration(duration) * time.Second
 	ticker := time.NewTicker(tickInterval)
-	logrus.Infof("running scan of repo %s every %d seconds", config.scan.Spec.RepoUrl, duration)
+	logrus.Infof("running scan of repo %s every %d seconds", args.scan.Spec.RepoUrl, duration)
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Infof("shutdown signal received for %s", config.scan.Namespace+"/"+config.scan.Name)
-			err := config.scanner.Stop()
+			logrus.Infof("shutdown signal received for %s", args.scan.Namespace+"/"+args.scan.Name)
+			err := args.scanner.Stop()
 			if err != nil {
 				logrus.Errorf("unable to stop scanner %s", err.Error())
 			}
@@ -177,32 +179,32 @@ func (r *GitRepoScanReconciler) startRepoScans(ctx context.Context, config scanC
 				nameExceptions = map[string]struct{}{}
 				logrus.Errorf("unable to get name/value exceptions, some exceptions may be ignored: %s", err.Error())
 			}
-			logrus.Infof("scanning %s", config.scan.Namespace+"/"+config.scan.Name)
-			reports, err := config.scanner.Scan()
+			logrus.Infof("scanning %s", args.scan.Namespace+"/"+args.scan.Name)
+			reports, err := args.scanner.Scan()
 			if err != nil {
 				logrus.Errorf("unable to scan repo %s", err.Error())
-				newScan, updErr := r.updateScanStatus(config.scan, false, err.Error())
+				newScan, updErr := r.updateScanStatus(args.scan, false, err.Error())
 				if updErr != nil {
 					logrus.Errorf("unable to update scan status %s", updErr.Error())
 					continue
 				}
-				config.scan = *newScan
+				args.scan = *newScan
 				continue
 			}
-			newScan, updErr := r.updateScanStatus(config.scan, true, "")
+			newScan, updErr := r.updateScanStatus(args.scan, true, "")
 			if updErr != nil {
 				logrus.Errorf("unable to update scan status %s", updErr.Error())
 			} else {
-				config.scan = *newScan
+				args.scan = *newScan
 			}
 			logrus.Infof("found %d exposed credentials", len(reports))
 			for _, report := range reports {
 				if _, ok := valueExceptions[report.Secret]; ok {
-					logrus.Infof("Exception found for token in %s at commit %s, skipping with no action taken", config.scan.Spec.RepoUrl, report.Commit)
+					logrus.Infof("Exception found for token in %s at commit %s, skipping with no action taken", args.scan.Spec.RepoUrl, report.Commit)
 					continue
 				}
-				logrus.Infof("Value matching rancher token pattern found in %s at commit %s by author %s ", config.scan.Spec.RepoUrl, report.Commit, report.Author)
-				err := config.revoker.RevokeTokenByValue(report.Secret, nameExceptions)
+				logrus.Warnf("Value matching rancher token pattern found in %s at commit %s by author %s ", args.scan.Spec.RepoUrl, report.Commit, report.Author)
+				err := args.revoker.RevokeTokenByValue(report.Secret, nameExceptions)
 				if err != nil {
 					logrus.Infof("Unable to revoke token with error %s", err.Error())
 				}
@@ -218,7 +220,7 @@ func (r *GitRepoScanReconciler) readAuthMethodFromSecret(secretName string) (tra
 		Namespace: r.Namespace,
 	}
 	var secret v1.Secret
-	err := r.Client.Get(context.Background(), secretKey, &secret)
+	err := r.APIReader.Get(context.Background(), secretKey, &secret)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get scret: %w", err)
 	}

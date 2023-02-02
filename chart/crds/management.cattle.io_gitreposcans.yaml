@@ -35,30 +35,35 @@ spec:
           spec:
             description: GitRepoScanSpec defines the desired state of GitRepoScan
             properties:
-              forceNoAuth:
-                description: ForceNoAuth, if true, forces scans for this repo to ignore
-                  other settings to use a secret to clone/pull from the repo Useful
-                  for forcing a scan to ignore auth settings setup at the controller
-                  level
-                type: boolean
-              repoSecretName:
-                description: RepoSecretName is the name of the secret (in the same
-                  namespace as the chart is installed in) containing the secret to
-                  access the repo at RepoUrl. If empty, uses the secret configured
-                  when installing the controller (revokerOptions.defaultSecretName)
-                type: string
               repoUrl:
                 description: RepoUrl defines the target git repo to scan. Can be in
                   https format (https://github.com/MbolotSuse/rancher-token-revoker.git)
                   or in ssh format (git@github.com:MbolotSuse/rancher-token-revoker.git)
                 type: string
-              scanIntervalSeconds:
-                description: ScanIntervalSeconds is time between the last scan's start
-                  time and the next time a scan will be run. If empty/0, uses the
-                  default configured when installing the controller (revokerOptions.defaultScanInterval)
-                type: integer
+              scanConfig:
+                description: Config options for this scan
+                properties:
+                  forceNoAuth:
+                    description: ForceNoAuth, if true, forces scans for this repo
+                      to ignore other settings to use a secret to clone/pull from
+                      the repo Useful for forcing a scan to ignore auth settings setup
+                      at the controller level
+                    type: boolean
+                  repoSecretName:
+                    description: RepoSecretName is the name of the secret (in the
+                      same namespace as the chart is installed in) containing the
+                      secret to access the repo at RepoUrl. If empty, uses the secret
+                      configured when installing the controller (revokerOptions.defaultSecretName)
+                    type: string
+                  scanIntervalSeconds:
+                    description: ScanIntervalSeconds is time between the last scan's
+                      start time and the next time a scan will be run. If empty/0,
+                      uses the default configured when installing the controller (revokerOptions.defaultScanInterval)
+                    type: integer
+                type: object
             required:
             - repoUrl
+            - scanConfig
             type: object
           status:
             description: GitRepoScanStatus defines the observed state of GitRepoScan

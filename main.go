@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
+
+	"github.com/mbolotsuse/rancher-token-revoker/revoker"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -62,7 +63,7 @@ func main() {
 	var defaultScanIntervalSeconds int
 	var revokeMode string
 	var defaultSecret string
-	var debug bool
+	var logLevel string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -71,7 +72,7 @@ func main() {
 	flag.IntVar(&defaultScanIntervalSeconds, "default-scan-interval", 60, "Default scan interval in seconds")
 	flag.StringVar(&revokeMode, "revoke-mode", "disable", "Action to take on discovering exposed tokens. Allowed values are warn, disable, delete")
 	flag.StringVar(&defaultSecret, "default-secret", "", "Optional: default secret (in $K8S_NAMESPACE) which contains authentication value to be used by default for repo access")
-	flag.BoolVar(&debug, "debug", false, "Debug mode - default false. Be careful when enabling, can result in secrets writing to log files")
+	flag.StringVar(&logLevel, "logLevel", "warn", "Level of the logs. Acceptable values are debug, info, and warn.")
 	opts := zap.Options{
 		Development: false,
 	}
@@ -80,10 +81,15 @@ func main() {
 
 	// Core app uses logrus, but gitleaks (dependency) uses zerolog in a way that doesn't seem to be exposed to library
 	// functions, so we have to call/disable this here
-	if debug {
+	if logLevel == "debug" {
 		logrus.SetLevel(logrus.DebugLevel)
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else if logLevel == "info" {
+		logrus.SetLevel(logrus.InfoLevel)
+		zerolog.SetGlobalLevel(zerolog.Disabled)
 	} else {
+		// warn is default, so no need for a fourth case
+		logrus.SetLevel(logrus.WarnLevel)
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 	}
 
@@ -126,12 +132,23 @@ func main() {
 	if err = (&controllers.GitRepoScanReconciler{
 		Client:              mgr.GetClient(),
 		Scheme:              mgr.GetScheme(),
+		APIReader:           mgr.GetAPIReader(),
 		DefaultScanInterval: defaultScanIntervalSeconds,
 		RevokerMode:         revokerMode,
 		Namespace:           namespace,
 		DefaultAuthSecret:   defaultSecret,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitRepoScan")
+		os.Exit(1)
+	}
+	if err = (&controllers.GitOrgScanReconciler{
+		Client:              mgr.GetClient(),
+		Scheme:              mgr.GetScheme(),
+		APIReader:           mgr.GetAPIReader(),
+		DefaultScanInterval: defaultScanIntervalSeconds,
+		Namespace:           namespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "GitOrgScan")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

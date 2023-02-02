@@ -1,0 +1,31 @@
+# permissions for end users to edit gitorgscans.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: gitorgscan-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: rancher-token-revoker
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+  name: gitorgscan-editor-role
+rules:
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans/status
+  verbs:
+  - get

@@ -24,6 +24,7 @@ See the [chart readme](chart/README.md) for more information on chart options. N
 - Automatically delete/disable/warn (based on configuration) exposed rancher tokens
 - Works with token hashing enabled or disabled
 - Permit exceptions of specific tokens (by name or by value)
+- Scan all github repos in an org with one Resource Definition
 
 ## Detailed Description
 The rancher-token-revoker defines a CRD (GitRepoScans) which allows users to define specific git repos that will be watched for exposed rancher tokens.

@@ -43,6 +43,18 @@ rules:
   - apiGroups:
       - management.cattle.io
     resources:
+      - gitorgscans
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - management.cattle.io
+    resources:
       - tokens
     verbs:
       - get

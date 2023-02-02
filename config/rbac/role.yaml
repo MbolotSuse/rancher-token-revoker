@@ -8,6 +8,32 @@ rules:
 - apiGroups:
   - management.cattle.io
   resources:
+  - gitorgscans
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - management.cattle.io
+  resources:
   - gitreposcans
   verbs:
   - create

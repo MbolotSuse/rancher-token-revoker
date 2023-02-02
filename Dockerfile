@@ -18,6 +18,7 @@ COPY controllers/ controllers/
 COPY errors/ errors/
 COPY revoker/ revoker/
 COPY scanner/ scanner/
+COPY org/ org/
 
 # Build
 # the GOARCH has not a default value to allow the binary be built according to the host where the command

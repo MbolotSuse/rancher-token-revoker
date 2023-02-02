@@ -1,0 +1,121 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.11.1
+  creationTimestamp: null
+  name: gitorgscans.management.cattle.io
+spec:
+  group: management.cattle.io
+  names:
+    kind: GitOrgScan
+    listKind: GitOrgScanList
+    plural: gitorgscans
+    singular: gitorgscan
+  scope: Namespaced
+  versions:
+  - name: v3
+    schema:
+      openAPIV3Schema:
+        description: GitOrgScan is the Schema for the gitorgscans API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: GitOrgScanSpec defines the desired state of GitOrgScan
+            properties:
+              fullOrgName:
+                description: FullOrgName is the name of the org, in the full path,
+                  as known by the git provider
+                type: string
+              orgScanConfig:
+                description: OrgScanConfig contains options to determine when/how
+                  to refresh org information
+                properties:
+                  githubOrgScanConfig:
+                    description: GithubOrgScanConfig is the config containing github-specific
+                      options.
+                    properties:
+                      baseUrl:
+                        description: BaseUrl is the baseURl used for api calls to
+                          github. If empty, uses the default url for the public github
+                          instance
+                        type: string
+                      secretName:
+                        description: SecretName is the name of the secret that will
+                          be used to query the API for org information. Required value.
+                          Secret.Type must be management.cattle.io/github-token, which
+                          has one key "accessToken" and one value (the access token)
+                        type: string
+                      uploadUrl:
+                        description: UploadUrl is the uploadURl used for api calls
+                          to github. If empty, uses the default url for the public
+                          github instance
+                        type: string
+                    required:
+                    - secretName
+                    type: object
+                  orgScanInterval:
+                    description: OrgScanInterval is the time between the last scan's
+                      start time and the next time a scan will be run.
+                    type: integer
+                  repoUrlType:
+                    description: RepoUrlType is the type of url which should be used
+                      for each url in the repo. Valid values are https, ssh
+                    type: string
+                required:
+                - githubOrgScanConfig
+                type: object
+              repoScanConfig:
+                description: RepoScanConfig is the ScanConfig to be used for every
+                  repo in this org
+                properties:
+                  forceNoAuth:
+                    description: ForceNoAuth, if true, forces scans for this repo
+                      to ignore other settings to use a secret to clone/pull from
+                      the repo Useful for forcing a scan to ignore auth settings setup
+                      at the controller level
+                    type: boolean
+                  repoSecretName:
+                    description: RepoSecretName is the name of the secret (in the
+                      same namespace as the chart is installed in) containing the
+                      secret to access the repo at RepoUrl. If empty, uses the secret
+                      configured when installing the controller (revokerOptions.defaultSecretName)
+                    type: string
+                  scanIntervalSeconds:
+                    description: ScanIntervalSeconds is time between the last scan's
+                      start time and the next time a scan will be run. If empty/0,
+                      uses the default configured when installing the controller (revokerOptions.defaultScanInterval)
+                    type: integer
+                type: object
+            required:
+            - fullOrgName
+            - orgScanConfig
+            - repoScanConfig
+            type: object
+          status:
+            description: GitOrgScanStatus defines the observed state of GitOrgScan
+            properties:
+              deployed:
+                description: Deployed indicates if the scans for the sub-resources
+                  of this org have been successfully rolled out
+                type: boolean
+            required:
+            - deployed
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

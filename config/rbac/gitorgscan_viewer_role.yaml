@@ -1,0 +1,27 @@
+# permissions for end users to view gitorgscans.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: gitorgscan-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: rancher-token-revoker
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+  name: gitorgscan-viewer-role
+rules:
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - management.cattle.io
+  resources:
+  - gitorgscans/status
+  verbs:
+  - get

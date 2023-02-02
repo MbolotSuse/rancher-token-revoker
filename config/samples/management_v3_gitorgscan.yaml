@@ -1,0 +1,21 @@
+apiVersion: management.cattle.io/v3
+kind: GitOrgScan
+metadata:
+  labels:
+    app.kubernetes.io/name: gitorgscan
+    app.kubernetes.io/instance: gitorgscan-sample
+    app.kubernetes.io/part-of: rancher-token-revoker
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: rancher-token-revoker
+  name: gitorgscan-sample
+  namespace: test-ns
+spec:
+  fullOrgName: $MY_ORG
+  orgScanConfig:
+    orgScanInterval: 86400
+    repoUrlType: ssh
+    githubOrgScanConfig:
+      secretName: $TOKEN_SECRET_NAME
+  repoScanConfig:
+    repoSecretName: $REPO_SECRET_NAME
+    scanIntervalSeconds: 600

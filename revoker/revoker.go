@@ -46,8 +46,8 @@ type TokenRevoker struct {
 
 // RevokeTokenByValue finds tokens which have the input value and revokes them (based on mode).
 // Only works if token-hashing is disabled
-func (t *TokenRevoker) RevokeTokenByValue(tokenValue string) error {
-	err := t.revokeTokenByIndexer(tokenValue)
+func (t *TokenRevoker) RevokeTokenByValue(tokenValue string, exceptedTokenNames map[string]struct{}) error {
+	err := t.revokeTokenByIndexer(tokenValue, exceptedTokenNames)
 	if err != nil {
 		tokenHashingEnabled, err := t.tokenHashingEnabled()
 		if err != nil {
@@ -55,7 +55,7 @@ func (t *TokenRevoker) RevokeTokenByValue(tokenValue string) error {
 		}
 		// given how expensive this is, only do it if we are sure that we need to
 		if tokenHashingEnabled {
-			return t.revokeTokenFromHashedTokens(tokenValue)
+			return t.revokeTokenFromHashedTokens(tokenValue, exceptedTokenNames)
 		}
 	}
 	return nil
@@ -63,7 +63,7 @@ func (t *TokenRevoker) RevokeTokenByValue(tokenValue string) error {
 
 // revokeTokenByIndexer revokes tokens using the by-value indexer. Unfortunately, this quicker method is only available
 // when token hashing is disabled, since we hash tokens using a salt
-func (t *TokenRevoker) revokeTokenByIndexer(tokenValue string) error {
+func (t *TokenRevoker) revokeTokenByIndexer(tokenValue string, exceptedTokenNames map[string]struct{}) error {
 	var tokenList rancherv3.TokenList
 	err := t.Client.List(context.Background(), &tokenList, client.MatchingFields{IndexerKey: tokenValue})
 	if err != nil {
@@ -77,7 +77,7 @@ func (t *TokenRevoker) revokeTokenByIndexer(tokenValue string) error {
 	}
 	errors := errorList{}
 	for _, token := range tokenList.Items {
-		err = t.revoke(token)
+		err = t.revoke(token, exceptedTokenNames)
 		if err != nil {
 			errors.append(err)
 		}
@@ -90,7 +90,7 @@ func (t *TokenRevoker) revokeTokenByIndexer(tokenValue string) error {
 
 // revokeTokenFromHashedTokens revokes a token by value given that all tokens are hashed. Since our hashes use salts, we
 // can't pre-compute the target hash and need to check every token. This is very inefficient.
-func (t *TokenRevoker) revokeTokenFromHashedTokens(tokenValue string) error {
+func (t *TokenRevoker) revokeTokenFromHashedTokens(tokenValue string, exceptedTokenNames map[string]struct{}) error {
 	var tokenList rancherv3.TokenList
 	err := t.Client.List(context.Background(), &tokenList)
 	if err != nil {
@@ -152,7 +152,7 @@ func (t *TokenRevoker) revokeTokenFromHashedTokens(tokenValue string) error {
 			if err != nil {
 				return fmt.Errorf("unable to re-fetch target token for revoking %w", err)
 			}
-			return t.revoke(token)
+			return t.revoke(token, exceptedTokenNames)
 		}
 		if total == len(tokenList.Items) {
 			cancelFunc()
@@ -163,7 +163,11 @@ func (t *TokenRevoker) revokeTokenFromHashedTokens(tokenValue string) error {
 }
 
 // revoke handles the action/backend revoking once we have identified a target token
-func (t *TokenRevoker) revoke(token rancherv3.Token) error {
+func (t *TokenRevoker) revoke(token rancherv3.Token, exceptedTokenNames map[string]struct{}) error {
+	if _, ok := exceptedTokenNames[token.Name]; ok {
+		logrus.Infof("Will not revoke token %s as there is an exception for it", token.Name)
+		return nil
+	}
 	switch t.Mode {
 	// This is also the default case if no mode was set
 	case ModeWarn:

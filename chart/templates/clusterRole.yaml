@@ -60,6 +60,8 @@ rules:
       - get
       - list
       - watch
+      - update
+      - delete
   - apiGroups:
       - management.cattle.io
     resources:

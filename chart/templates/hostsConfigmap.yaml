@@ -1,0 +1,14 @@
+{{- if gt (len .Values.knownHosts) 0 -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rancher-token-revoker.fullname" . }}-hosts-configmap
+  labels:
+    {{- include "rancher-token-revoker.labels" . | nindent 4 }}
+data:
+  known_hosts: |
+{{- range .Values.knownHosts }}
+    {{ . }}
+{{- end }}
+
+{{- end }}

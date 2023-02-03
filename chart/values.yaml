@@ -10,6 +10,9 @@ revokerOptions:
   # default interval, in seconds, between scans of a repo. Can be overriden at the per-repo scan level
   defaultScanInterval: 600
 
+# knownHosts as would be present in a ssh identity file. One host per line, in the format of "host algorithm key". See docs/private_repos for more.
+knownHosts: []
+
 replicaCount: 1
 
 image:

@@ -44,6 +44,8 @@ Users can define the following options on the GitRepoScans CRD (see the [crd def
 - ScanInterval: the time (in seconds as an int) between scans. If not specified (or is 0), uses the DefaultScanInterval
 - RepoUrl: The url of the gitrepo to scan. Should be in the format of an `ssh` or `https` url which can be used to clone/pull the repo
 
+User can also use a CRD (GitOrgScans) to scan an entire organization. See the [docs](docs/orgs.md) for more infromation on how to use this CRD.
+
 Users can also produce exceptions for certain tokens using the ScanExceptions CRD (see the [crd definition](config/crd/bases/management.cattle.io_scanexceptions.yaml for all fields), by either providing the exposed token value or the exposed token name. This should be used sparingly - keep in mind that even if the revoker detects a string that matches the pattern of a rancher token, it will only take action if it can verify that the token matches the value of a current token in the cluster it is installed in. 
 
 *Note:* This will still work if you are using token hashing. 
@@ -62,3 +64,8 @@ Common commands include:
 ## Docs
 
 See the `docs` directory for detailed docs on various features (such as setting up private repo authentication).
+
+
+### Example
+
+The [samples](config/samples) contain examples of how to use each of these crds.

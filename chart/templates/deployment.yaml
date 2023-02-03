@@ -36,6 +36,10 @@ spec:
           env:
             - name: K8S_NAMESPACE
               value: {{ .Release.Namespace }}
+{{-  if gt (len .Values.knownHosts) 0 }}
+            - name: SSH_KNOWN_HOSTS
+              value: /etc/ssh/known_hosts
+{{- end }}
           args:
             - "-revoke-mode={{ .Values.revokerOptions.mode }}"
 {{- if not (eq .Values.revokerOptions.defaultSecretName "") }}
@@ -44,6 +48,18 @@ spec:
             - "-default-scan-interval={{ .Values.revokerOptions.defaultScanInterval }}"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+{{-  if gt (len .Values.knownHosts) 0 }}
+          volumeMounts:
+            - mountPath: /etc/ssh/known_hosts
+              name: known-hosts
+              subPath: known_hosts
+{{- end }}
+{{-  if gt (len .Values.knownHosts) 0 }}
+      volumes:
+        - name: known-hosts
+          configMap: 
+            name: {{ include "rancher-token-revoker.fullname" . }}-hosts-configmap
+{{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
